@@ -204,6 +204,7 @@ class WeaviateVectorStore(VectorStore):
         self,
         query: str,
         k: int,
+        keyword_query: Optional[str] = None,
         return_score=False,
         search_method: Literal["hybrid", "near_vector"] = "hybrid",
         tenant: Optional[str] = None,
@@ -214,6 +215,7 @@ class WeaviateVectorStore(VectorStore):
 
         Parameters:
         query (str): The query string to search for.
+        keyword_query (str): The seperate query string to search for using bm25.
         k (int): The number of results to return.
         return_score (bool, optional): Whether to return the score along with the
           document. Defaults to False.
@@ -234,10 +236,10 @@ class WeaviateVectorStore(VectorStore):
         if self._embedding is None:
             raise ValueError("_embedding cannot be None for similarity_search")
 
-        if "return_metadata" in kwargs and "score" not in kwargs["return_metadata"]:
+        """if "return_metadata" in kwargs and "score" not in kwargs["return_metadata"]:
             kwargs["return_metadata"].append("score")
         else:
-            kwargs["return_metadata"] = ["score"]
+            kwargs["return_metadata"] = ["score"]"""
 
         if (
             "return_properties" in kwargs
@@ -251,6 +253,8 @@ class WeaviateVectorStore(VectorStore):
             try:
                 if search_method == "hybrid":
                     embedding = self._embedding.embed_query(query)
+                    if keyword_query != None:
+                        query = keyword_query
                     result = collection.query.hybrid(
                         query=query, vector=embedding, limit=k, **kwargs
                     )
@@ -279,18 +283,19 @@ class WeaviateVectorStore(VectorStore):
             if not return_score:
                 docs.append(doc)
             else:
-                score = obj.metadata.score
+                score = str(obj.metadata.score) + ": " + str(obj.metadata.explain_score) + "\nDistance: " + str(obj.metadata.distance)
                 docs.append((doc, score))
 
         return docs
 
     def similarity_search(
-        self, query: str, k: int = 4, **kwargs: Any
+        self, query: str, k: int = 4, keyword_query: str = None, **kwargs: Any
     ) -> List[Document]:
         """Return docs most similar to query.
 
         Args:
-            query: Text to look up documents similar to.
+            query: Text to look up documents similar to using vector similarity.
+            keyword_query: Text to look up documents similar to using bm25.
             k: Number of Documents to return. Defaults to 4.
             **kwargs: Additional keyword arguments will be passed to the `hybrid()`
                 function of the weaviate client.
@@ -299,7 +304,7 @@ class WeaviateVectorStore(VectorStore):
             List of Documents most similar to the query.
         """
 
-        result = self._perform_search(query, k, **kwargs)
+        result = self._perform_search(query, k, keyword_query, **kwargs)
         return result
 
     def similarity_search_by_vector(
