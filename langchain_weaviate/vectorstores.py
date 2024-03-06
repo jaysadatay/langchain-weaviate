@@ -252,12 +252,23 @@ class WeaviateVectorStore(VectorStore):
         with self._tenant_context(tenant) as collection:
             try:
                 if search_method == "hybrid":
-                    embedding = self._embedding.embed_query(query)
-                    if keyword_query != None:
-                        query = keyword_query
-                    result = collection.query.hybrid(
-                        query=query, vector=embedding, limit=k, **kwargs
-                    )
+                    if self._embedding != None:
+                        embedding = self._embedding.embed_query(query)
+                        if keyword_query != None:
+                            query = keyword_query
+                        result = collection.query.hybrid(
+                            query=query,
+                            vector=embedding,
+                            limit=k,
+                            **kwargs
+                        )
+                    else:
+                        result = collection.query.hybrid(
+                            query=query,
+                            #vector=embedding,
+                            limit=k,
+                            **kwargs
+                        )
                 elif search_method == "near_vector":
                     result = collection.query.near_vector(limit=k, **kwargs)
                 else:
