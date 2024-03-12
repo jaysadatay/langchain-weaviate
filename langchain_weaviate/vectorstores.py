@@ -206,7 +206,7 @@ class WeaviateVectorStore(VectorStore):
         k: int,
         keyword_query: Optional[str] = None,
         return_score=False,
-        search_method: Literal["hybrid", "near_vector"] = "hybrid",
+        search_method: Literal["hybrid", "near_vector", "near_text"] = "hybrid",
         tenant: Optional[str] = None,
         **kwargs: Any,
     ) -> List[Union[Document, Tuple[Document, float]]]:
@@ -233,8 +233,8 @@ class WeaviateVectorStore(VectorStore):
         Raises:
         ValueError: If _embedding is None or an invalid search method is provided.
         """
-        if self._embedding is None:
-            raise ValueError("_embedding cannot be None for similarity_search")
+        if search_method != "near_text" and self._embedding is None:
+            raise ValueError("_embedding cannot be None for similarity_search if search_method is not near_text")
 
         """if "return_metadata" in kwargs and "score" not in kwargs["return_metadata"]:
             kwargs["return_metadata"].append("score")
@@ -271,6 +271,8 @@ class WeaviateVectorStore(VectorStore):
                         )
                 elif search_method == "near_vector":
                     result = collection.query.near_vector(limit=k, **kwargs)
+                elif search_method == "near_text":
+                    result = collection.query.near_text(query=query, limit=k, **kwargs)
                 else:
                     raise ValueError(f"Invalid search method: {search_method}")
             except weaviate.exceptions.WeaviateQueryException as e:
@@ -282,7 +284,7 @@ class WeaviateVectorStore(VectorStore):
             filtered_metadata = {
                 k: v
                 for k, v in obj.metadata.__dict__.items()
-                if v is not None and k != "score"
+                if v is not None
             }
             merged_props = {
                 **obj.properties,
@@ -294,7 +296,7 @@ class WeaviateVectorStore(VectorStore):
             if not return_score:
                 docs.append(doc)
             else:
-                score = str(obj.metadata.score) + ": " + str(obj.metadata.explain_score) + "\nDistance: " + str(obj.metadata.distance)
+                score = str(obj.metadata.score) + ": " + str(obj.metadata.explain_score)
                 docs.append((doc, score))
 
         return docs
@@ -315,7 +317,8 @@ class WeaviateVectorStore(VectorStore):
             List of Documents most similar to the query.
         """
 
-        result = self._perform_search(query, k, keyword_query, **kwargs)
+        search_method = kwargs.pop("search_method", "hybrid")
+        result = self._perform_search(query, k, keyword_query, search_method=search_method, **kwargs)
         return result
 
     def similarity_search_by_vector(
